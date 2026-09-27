@@ -1,16 +1,16 @@
--- JJS Item ESP Script with Fluent UI & Custom Item Toggles
+-- JJS Item ESP Script - Fixed Continuous Scanning & All Items
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Load Fluent UI từ thư viện chuẩn
+-- Load Fluent UI
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
--- Tạo cửa sổ Fluent UI
 local Window = Fluent:CreateWindow({
-    Title = "JJS Item ESP | Fluent UI",
-    SubTitle = "Custom Item ESP Manager",
+    Title = "JJS Item ESP | Ultimate",
+    SubTitle = "Auto-Scan & Fix Missing Items",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
@@ -18,12 +18,11 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- Tạo Tab chính
 local Tabs = {
     ESP = Window:AddTab({ Title = "Item ESP", Icon = "eye" })
 }
 
--- Danh sách cấu hình trạng thái từng item (Mặc định là tắt hoặc bật tùy bạn chọn)
+-- Danh sách vật phẩm của bạn
 local itemToggles = {
     ["Soda"] = false,
     ["Coin"] = false,
@@ -43,13 +42,11 @@ local itemToggles = {
     ["Crowbar"] = false,
 }
 
--- Lưu trữ danh sách các Highlight để đổi màu Rainbow
 local rainbowHighlights = {}
 
--- Tạo Toggle cho từng vật phẩm trên giao diện
 Tabs.ESP:AddParagraph({
-    Title = "Quản lý ESP Vật Phẩm",
-    Content = "Bật công tắc của vật phẩm nào thì vật phẩm đó sẽ được ESP (Chữ nhỏ + Viền Rainbow)."
+    Title = "Quản lý ESP Vật Phẩm (Fixed)",
+    Content = "Đã sửa lỗi không quét được Voice Recorder và các item spawn ẩn. Hệ thống sẽ tự động quét liên tục."
 })
 
 for itemName, _ in pairs(itemToggles) do
@@ -58,27 +55,16 @@ for itemName, _ in pairs(itemToggles) do
         Default = false,
         Callback = function(Value)
             itemToggles[itemName] = Value
-            -- Cập nhật lại trạng thái hiển thị ngay lập tức nếu vật phẩm đã có sẵn trong map
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj.Name == itemName then
-                    local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
-                    local ui = obj:FindFirstChild("JJS_ItemESP_UI")
-                    if hl then hl.Enabled = Value end
-                    if ui then ui.Enabled = Value end
-                end
-            end
         end
     })
 end
 
--- Hàm tạo ESP cho item khớp với tên trong danh sách
+-- Hàm tạo ESP cho item
 local function createESP(item)
     if not item or not item.Parent then return end
-    if not itemToggles[item.Name] then return end -- Nếu tắt toggle thì không tạo
     if item:FindFirstChild("JJS_ItemESP_UI") then return end
 
     pcall(function()
-        -- Highlight Rainbow
         local highlight = Instance.new("Highlight")
         highlight.Name = "JJS_ItemESP_Highlight"
         highlight.FillColor = Color3.fromRGB(255, 255, 255)
@@ -86,18 +72,15 @@ local function createESP(item)
         highlight.FillTransparency = 0.7
         highlight.OutlineTransparency = 0
         highlight.Adornee = item
-        highlight.Enabled = itemToggles[item.Name]
         highlight.Parent = item
 
         table.insert(rainbowHighlights, highlight)
 
-        -- BillboardGui hiển thị tên nhỏ gọn
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "JJS_ItemESP_UI"
         billboard.Size = UDim2.new(0, 80, 0, 25)
         billboard.StudsOffset = Vector3.new(0, 2, 0)
         billboard.AlwaysOnTop = true
-        billboard.Enabled = itemToggles[item.Name]
         
         if item:IsA("Model") then
             billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
@@ -119,7 +102,30 @@ local function createESP(item)
     end)
 end
 
--- Hiệu ứng đổi màu Rainbow liên tục cho các Highlight đang bật
+-- Quét định kỳ mỗi 0.5 giây để bắt trọn các item mới spawn hoặc item khó tính như Voice Recorder
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        pcall(function()
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if itemToggles[obj.Name] then
+                    local ui = obj:FindFirstChild("JJS_ItemESP_UI")
+                    local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
+                    
+                    if not ui or not hl then
+                        createESP(obj)
+                    else
+                        -- Cập nhật trạng thái bật/tắt theo UI
+                        ui.Enabled = itemToggles[obj.Name]
+                        hl.Enabled = itemToggles[obj.Name]
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Hiệu ứng Rainbow chuyển màu liên tục
 RunService.RenderStepped:Connect(function()
     local hue = (tick() % 5) / 5
     local rainbowColor = Color3.fromHSV(hue, 1, 1)
@@ -127,7 +133,6 @@ RunService.RenderStepped:Connect(function()
     for i = #rainbowHighlights, 1, -1 do
         local hl = rainbowHighlights[i]
         if hl and hl.Parent then
-            -- Chỉ đổi màu nếu toggle của item đó đang Bật
             local parentName = hl.Parent.Name
             if itemToggles[parentName] then
                 hl.FillColor = rainbowColor
@@ -142,26 +147,9 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Quét toàn bộ map tìm các item có sẵn khớp tên
-for _, obj in ipairs(Workspace:GetDescendants()) do
-    if itemToggles[obj.Name] then
-        createESP(obj)
-    end
-end
-
--- Lắng nghe khi có item mới spawn trong game
-Workspace.DescendantAdded:Connect(function(child)
-    task.spawn(function()
-        task.wait(0.2)
-        if itemToggles[child.Name] then
-            createESP(child)
-        end
-    end)
-end)
-
 Window:SelectTab(1)
 Fluent:Notify({
     Title = "JJS Item ESP",
-    Content = "Đã khởi động giao diện Fluent UI thành công!",
+    Content = "Đã cập nhật quét liên tục thành công!",
     Duration = 4
 })
