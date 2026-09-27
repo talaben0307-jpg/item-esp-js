@@ -1,10 +1,11 @@
--- JJS Pickable Items ESP (Chỉ hiện các item có thể cầm/nhặt lên)
--- Created for Jujutsu Shenanigans
-
-local Players = Service("Players" or game:GetService("Players")) -- fallback
+-- JJS Item ESP Script with Toggle UI
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
+
+-- Trạng thái ESP (Mặc định là bật)
+local espEnabled = true
 
 -- Cấu hình màu sắc ESP
 local ESP_SETTINGS = {
@@ -13,17 +14,40 @@ local ESP_SETTINGS = {
     HighlightOutline = Color3.fromRGB(255, 255, 255), -- Viền trắng nổi bật
 }
 
--- Hàm kiểm tra xem một vật phẩm có phải là item có thể cầm/nhặt không
+-- Xóa UI cũ nếu có để tránh trùng lặp
+if CoreGui:FindFirstChild("JJS_ESPToggleUI") then
+    CoreGui.JJS_ESPToggleUI:Destroy()
+end
+
+-- Tạo GUI nút Bật/Tắt trên màn hình
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "JJS_ESPToggleUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = CoreGui
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 110, 0, 40)
+toggleButton.Position = UDim2.new(0, 20, 0, 100) -- Vị trí ở góc trái màn hình
+toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+toggleButton.BorderColor3 = Color3.fromRGB(0, 255, 128)
+toggleButton.BorderSizePixel = 2
+toggleButton.Text = "ESP: ON"
+toggleButton.TextColor3 = Color3.fromRGB(0, 255, 128)
+toggleButton.TextScaled = true
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = screenGui
+
+-- Hàm kiểm tra vật phẩm có thể cầm/nhặt
 local function isPickableItem(obj)
-    -- Kiểm tra nếu đối tượng là Tool trực tiếp hoặc nằm trong các thư mục chứa vật phẩm rớt ra
+    if not obj or not obj.Parent then return false end
+    
     if obj:IsA("Tool") then
         return true
     end
     
-    -- JJS thường lưu các vật phẩm nhặt được dưới dạng Model hoặc Part có chứa Handle hoặc Prompt tương tác
     if obj:IsA("Model") or obj:IsA("BasePart") then
         if obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("TouchInterest") then
-            -- Loại trừ nhân vật người chơi ra
             if not Players:GetPlayerFromCharacter(obj) then
                 return true
             end
@@ -33,62 +57,88 @@ local function isPickableItem(obj)
     return false
 end
 
+-- Hàm bật/tắt hiển thị của các ESP đã tạo
+local function updateESPVisibility()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
+        local ui = obj:FindFirstChild("JJS_ItemESP_UI")
+        if hl then hl.Enabled = espEnabled end
+        if ui then ui.Enabled = espEnabled end
+    end
+end
+
 -- Hàm tạo ESP cho item
 local function createESP(item)
     if not item or item:FindFirstChild("JJS_ItemESP_UI") then return end
 
-    -- Tạo Highlight viền sáng
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "JJS_ItemESP_Highlight"
-    highlight.FillColor = ESP_SETTINGS.HighlightFill
-    highlight.OutlineColor = ESP_SETTINGS.HighlightOutline
-    highlight.FillTransparency = 0.6
-    highlight.OutlineTransparency = 0
-    highlight.Adornee = item
-    highlight.Parent = item
+    pcall(function()
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "JJS_ItemESP_Highlight"
+        highlight.FillColor = ESP_SETTINGS.HighlightFill
+        highlight.OutlineColor = ESP_SETTINGS.HighlightOutline
+        highlight.FillTransparency = 0.6
+        highlight.OutlineTransparency = 0
+        highlight.Adornee = item
+        highlight.Enabled = espEnabled
+        highlight.Parent = item
 
-    -- Tạo BillboardGui hiển thị tên item
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "JJS_ItemESP_UI"
-    billboard.Size = UDim2.new(0, 120, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-    billboard.AlwaysOnTop = true
-    
-    -- Gắn adornee vào phần chính của item
-    if item:IsA("Model") then
-        billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
-    else
-        billboard.Adornee = item
-    end
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "JJS_ItemESP_UI"
+        billboard.Size = UDim2.new(0, 120, 0, 40)
+        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Enabled = espEnabled
+        
+        if item:IsA("Model") then
+            billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+        else
+            billboard.Adornee = item
+        end
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = "[ ITEM ] " .. item.Name
-    textLabel.TextColor3 = ESP_SETTINGS.TextColor
-    textLabel.TextScaled = true
-    textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextStrokeTransparency = 0 -- Viền đen chữ dễ đọc
-    textLabel.Parent = billboard
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = "[ ITEM ] " .. item.Name
+        textLabel.TextColor3 = ESP_SETTINGS.TextColor
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextStrokeTransparency = 0
+        textLabel.Parent = billboard
 
-    billboard.Parent = item
+        billboard.Parent = item
+    end)
 end
 
--- Quét các item có sẵn ngay khi chạy script
+-- Xử lý sự kiện bấm nút Toggle
+toggleButton.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        toggleButton.Text = "ESP: ON"
+        toggleButton.TextColor3 = Color3.fromRGB(0, 255, 128)
+        toggleButton.BorderColor3 = Color3.fromRGB(0, 255, 128)
+    else
+        toggleButton.Text = "ESP: OFF"
+        toggleButton.TextColor3 = Color3.fromRGB(255, 60, 60)
+        toggleButton.BorderColor3 = Color3.fromRGB(255, 60, 60)
+    end
+    updateESPVisibility()
+end)
+
+-- Quét item có sẵn
 for _, obj in ipairs(Workspace:GetDescendants()) do
     if isPickableItem(obj) then
         createESP(obj)
     end
 end
 
--- Lắng nghe khi có item mới spawn/rơi ra trong game
+-- Lắng nghe item mới spawn
 Workspace.DescendantAdded:Connect(function(child)
-    task.wait(0.2) -- Đợi item load xong cấu trúc bên trong
-    pcall(function()
+    task.spawn(function()
+        task.wait(0.2)
         if isPickableItem(child) then
             createESP(child)
         end
     end)
 end)
 
-print("Đã kích hoạt ESP Item nhặt được trong JJS!")
+print("Đã thêm nút Bật/Tắt ESP thành công!")
