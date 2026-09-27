@@ -1,4 +1,4 @@
--- JJS Item ESP Script - Fixed Continuous Scanning & All Items
+-- JJS Item ESP Script - Fixed Toggle Off Bug
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
@@ -10,7 +10,7 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 
 local Window = Fluent:CreateWindow({
     Title = "JJS Item ESP | Ultimate",
-    SubTitle = "Auto-Scan & Fix Missing Items",
+    SubTitle = "Fixed Toggle & Continuous Scan",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
@@ -22,7 +22,7 @@ local Tabs = {
     ESP = Window:AddTab({ Title = "Item ESP", Icon = "eye" })
 }
 
--- Danh sách vật phẩm của bạn
+-- Danh sách vật phẩm
 local itemToggles = {
     ["Soda"] = false,
     ["Coin"] = false,
@@ -45,8 +45,8 @@ local itemToggles = {
 local rainbowHighlights = {}
 
 Tabs.ESP:AddParagraph({
-    Title = "Quản lý ESP Vật Phẩm (Fixed)",
-    Content = "Đã sửa lỗi không quét được Voice Recorder và các item spawn ẩn. Hệ thống sẽ tự động quét liên tục."
+    Title = "Quản lý ESP Vật Phẩm",
+    Content = "Đã sửa lỗi tắt Toggle không chịu biến mất. Hệ thống quét liên tục hoạt động bình thường."
 })
 
 for itemName, _ in pairs(itemToggles) do
@@ -55,6 +55,18 @@ for itemName, _ in pairs(itemToggles) do
         Default = false,
         Callback = function(Value)
             itemToggles[itemName] = Value
+            
+            -- Ngay khi bấm tắt, quét và ẩn toàn bộ item loại này lập tức
+            if not Value then
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj.Name == itemName then
+                        local ui = obj:FindFirstChild("JJS_ItemESP_UI")
+                        local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
+                        if ui then ui.Enabled = false end
+                        if hl then hl.Enabled = false end
+                    end
+                end
+            end
         end
     })
 end
@@ -65,6 +77,8 @@ local function createESP(item)
     if item:FindFirstChild("JJS_ItemESP_UI") then return end
 
     pcall(function()
+        local isEnabled = itemToggles[item.Name] or false
+
         local highlight = Instance.new("Highlight")
         highlight.Name = "JJS_ItemESP_Highlight"
         highlight.FillColor = Color3.fromRGB(255, 255, 255)
@@ -72,6 +86,7 @@ local function createESP(item)
         highlight.FillTransparency = 0.7
         highlight.OutlineTransparency = 0
         highlight.Adornee = item
+        highlight.Enabled = isEnabled
         highlight.Parent = item
 
         table.insert(rainbowHighlights, highlight)
@@ -81,6 +96,7 @@ local function createESP(item)
         billboard.Size = UDim2.new(0, 80, 0, 25)
         billboard.StudsOffset = Vector3.new(0, 2, 0)
         billboard.AlwaysOnTop = true
+        billboard.Enabled = isEnabled
         
         if item:IsA("Model") then
             billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
@@ -102,22 +118,25 @@ local function createESP(item)
     end)
 end
 
--- Quét định kỳ mỗi 0.5 giây để bắt trọn các item mới spawn hoặc item khó tính như Voice Recorder
+-- Quét định kỳ để bắt item mới và đồng bộ trạng thái Bật/Tắt
 task.spawn(function()
     while true do
         task.wait(0.5)
         pcall(function()
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if itemToggles[obj.Name] then
+                if itemToggles[obj.Name] ~= nil then
                     local ui = obj:FindFirstChild("JJS_ItemESP_UI")
                     local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
+                    local shouldBeEnabled = itemToggles[obj.Name]
                     
                     if not ui or not hl then
-                        createESP(obj)
+                        if shouldBeEnabled then
+                            createESP(obj)
+                        end
                     else
-                        -- Cập nhật trạng thái bật/tắt theo UI
-                        ui.Enabled = itemToggles[obj.Name]
-                        hl.Enabled = itemToggles[obj.Name]
+                        -- Cập nhật chính xác trạng thái Bật hoặc Tắt theo Toggle
+                        ui.Enabled = shouldBeEnabled
+                        hl.Enabled = shouldBeEnabled
                     end
                 end
             end
@@ -150,6 +169,6 @@ end)
 Window:SelectTab(1)
 Fluent:Notify({
     Title = "JJS Item ESP",
-    Content = "Đã cập nhật quét liên tục thành công!",
+    Content = "Đã sửa lỗi nút tắt thành công!",
     Duration = 4
 })
