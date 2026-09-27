@@ -1,0 +1,94 @@
+-- JJS Pickable Items ESP (Chỉ hiện các item có thể cầm/nhặt lên)
+-- Created for Jujutsu Shenanigans
+
+local Players = Service("Players" or game:GetService("Players")) -- fallback
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- Cấu hình màu sắc ESP
+local ESP_SETTINGS = {
+    TextColor = Color3.fromRGB(0, 255, 128),         -- Màu chữ (Xanh lá sáng)
+    HighlightFill = Color3.fromRGB(0, 255, 128),     -- Màu phủ bên trong Highlight
+    HighlightOutline = Color3.fromRGB(255, 255, 255), -- Viền trắng nổi bật
+}
+
+-- Hàm kiểm tra xem một vật phẩm có phải là item có thể cầm/nhặt không
+local function isPickableItem(obj)
+    -- Kiểm tra nếu đối tượng là Tool trực tiếp hoặc nằm trong các thư mục chứa vật phẩm rớt ra
+    if obj:IsA("Tool") then
+        return true
+    end
+    
+    -- JJS thường lưu các vật phẩm nhặt được dưới dạng Model hoặc Part có chứa Handle hoặc Prompt tương tác
+    if obj:IsA("Model") or obj:IsA("BasePart") then
+        if obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("TouchInterest") then
+            -- Loại trừ nhân vật người chơi ra
+            if not Players:GetPlayerFromCharacter(obj) then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Hàm tạo ESP cho item
+local function createESP(item)
+    if not item or item:FindFirstChild("JJS_ItemESP_UI") then return end
+
+    -- Tạo Highlight viền sáng
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "JJS_ItemESP_Highlight"
+    highlight.FillColor = ESP_SETTINGS.HighlightFill
+    highlight.OutlineColor = ESP_SETTINGS.HighlightOutline
+    highlight.FillTransparency = 0.6
+    highlight.OutlineTransparency = 0
+    highlight.Adornee = item
+    highlight.Parent = item
+
+    -- Tạo BillboardGui hiển thị tên item
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "JJS_ItemESP_UI"
+    billboard.Size = UDim2.new(0, 120, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    
+    -- Gắn adornee vào phần chính của item
+    if item:IsA("Model") then
+        billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+    else
+        billboard.Adornee = item
+    end
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = "[ ITEM ] " .. item.Name
+    textLabel.TextColor3 = ESP_SETTINGS.TextColor
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextStrokeTransparency = 0 -- Viền đen chữ dễ đọc
+    textLabel.Parent = billboard
+
+    billboard.Parent = item
+end
+
+-- Quét các item có sẵn ngay khi chạy script
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if isPickableItem(obj) then
+        createESP(obj)
+    end
+end
+
+-- Lắng nghe khi có item mới spawn/rơi ra trong game
+Workspace.DescendantAdded:Connect(function(child)
+    task.wait(0.2) -- Đợi item load xong cấu trúc bên trong
+    pcall(function()
+        if isPickableItem(child) then
+            createESP(child)
+        end
+    end)
+end)
+
+print("Đã kích hoạt ESP Item nhặt được trong JJS!")
