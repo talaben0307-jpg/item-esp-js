@@ -1,68 +1,84 @@
--- JJS Item ESP Script - Small Text & Rainbow Highlight
+-- JJS Item ESP Script with Fluent UI & Custom Item Toggles
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
-local espEnabled = true
+-- Load Fluent UI từ thư viện chuẩn
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
--- Xóa UI cũ nếu có
-if CoreGui:FindFirstChild("JJS_ESPToggleUI") then
-    CoreGui.JJS_ESPToggleUI:Destroy()
-end
+-- Tạo cửa sổ Fluent UI
+local Window = Fluent:CreateWindow({
+    Title = "JJS Item ESP | Fluent UI",
+    SubTitle = "Custom Item ESP Manager",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
+})
 
--- Tạo GUI nút Bật/Tắt
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "JJS_ESPToggleUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = CoreGui
+-- Tạo Tab chính
+local Tabs = {
+    ESP = Window:AddTab({ Title = "Item ESP", Icon = "eye" })
+}
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 110, 0, 40)
-toggleButton.Position = UDim2.new(0, 20, 0, 100)
-toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-toggleButton.BorderColor3 = Color3.fromRGB(0, 255, 128)
-toggleButton.BorderSizePixel = 2
-toggleButton.Text = "ESP: ON"
-toggleButton.TextColor3 = Color3.fromRGB(0, 255, 128)
-toggleButton.TextScaled = true
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.Parent = screenGui
+-- Danh sách cấu hình trạng thái từng item (Mặc định là tắt hoặc bật tùy bạn chọn)
+local itemToggles = {
+    ["Soda"] = false,
+    ["Coin"] = false,
+    ["Jet Black"] = false,
+    ["Gun"] = false,
+    ["Playful Cloud"] = false,
+    ["Transfigured Flesh"] = false,
+    ["Voice Recorder"] = false,
+    ["Hazenoki's Eye"] = false,
+    ["Sniper"] = false,
+    ["Transfigured Human"] = false,
+    ["Tinted Glasses"] = false,
+    ["TNT"] = false,
+    ["Banana Peel"] = false,
+    ["Naginata"] = false,
+    ["Bowling Ball"] = false,
+    ["Crowbar"] = false,
+}
 
--- Danh sách lưu các Highlight để chạy hiệu ứng Rainbow
+-- Lưu trữ danh sách các Highlight để đổi màu Rainbow
 local rainbowHighlights = {}
 
--- Hàm kiểm tra vật phẩm nhặt được
-local function isPickableItem(obj)
-    if not obj or not obj.Parent then return false end
-    if obj:IsA("Tool") then return true end
-    if obj:IsA("Model") or obj:IsA("BasePart") then
-        if obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("TouchInterest") then
-            if not Players:GetPlayerFromCharacter(obj) then
-                return true
+-- Tạo Toggle cho từng vật phẩm trên giao diện
+Tabs.ESP:AddParagraph({
+    Title = "Quản lý ESP Vật Phẩm",
+    Content = "Bật công tắc của vật phẩm nào thì vật phẩm đó sẽ được ESP (Chữ nhỏ + Viền Rainbow)."
+})
+
+for itemName, _ in pairs(itemToggles) do
+    Tabs.ESP:AddToggle(itemName .. "Toggle", {
+        Title = "ESP: " .. itemName,
+        Default = false,
+        Callback = function(Value)
+            itemToggles[itemName] = Value
+            -- Cập nhật lại trạng thái hiển thị ngay lập tức nếu vật phẩm đã có sẵn trong map
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == itemName then
+                    local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
+                    local ui = obj:FindFirstChild("JJS_ItemESP_UI")
+                    if hl then hl.Enabled = Value end
+                    if ui then ui.Enabled = Value end
+                end
             end
         end
-    end
-    return false
+    })
 end
 
--- Cập nhật hiển thị Bật/Tắt
-local function updateESPVisibility()
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local hl = obj:FindFirstChild("JJS_ItemESP_Highlight")
-        local ui = obj:FindFirstChild("JJS_ItemESP_UI")
-        if hl then hl.Enabled = espEnabled end
-        if ui then ui.Enabled = espEnabled end
-    end
-end
-
--- Hàm tạo ESP cho item (Chữ nhỏ lại)
+-- Hàm tạo ESP cho item khớp với tên trong danh sách
 local function createESP(item)
-    if not item or item:FindFirstChild("JJS_ItemESP_UI") then return end
+    if not item or not item.Parent then return end
+    if not itemToggles[item.Name] then return end -- Nếu tắt toggle thì không tạo
+    if item:FindFirstChild("JJS_ItemESP_UI") then return end
 
     pcall(function()
+        -- Highlight Rainbow
         local highlight = Instance.new("Highlight")
         highlight.Name = "JJS_ItemESP_Highlight"
         highlight.FillColor = Color3.fromRGB(255, 255, 255)
@@ -70,22 +86,21 @@ local function createESP(item)
         highlight.FillTransparency = 0.7
         highlight.OutlineTransparency = 0
         highlight.Adornee = item
-        highlight.Enabled = espEnabled
+        highlight.Enabled = itemToggles[item.Name]
         highlight.Parent = item
 
-        -- Đưa vào bảng để chạy hiệu ứng Rainbow
         table.insert(rainbowHighlights, highlight)
 
-        -- Thu nhỏ kích thước BillboardGui lại (StudsSize nhỏ hơn, không dùng TextScaled quá to)
+        -- BillboardGui hiển thị tên nhỏ gọn
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "JJS_ItemESP_UI"
-        billboard.Size = UDim2.new(0, 80, 0, 25) -- Kích thước nhỏ gọn
+        billboard.Size = UDim2.new(0, 80, 0, 25)
         billboard.StudsOffset = Vector3.new(0, 2, 0)
         billboard.AlwaysOnTop = true
-        billboard.Enabled = espEnabled
+        billboard.Enabled = itemToggles[item.Name]
         
         if item:IsA("Model") then
-            billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BaseProximityPrompt") or item:FindFirstChildWhichIsA("BasePart")
+            billboard.Adornee = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
         else
             billboard.Adornee = item
         end
@@ -95,7 +110,7 @@ local function createESP(item)
         textLabel.BackgroundTransparency = 1
         textLabel.Text = item.Name
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textLabel.TextSize = 12 -- Cỡ chữ cố định nhỏ gọn, không bị bự chảng
+        textLabel.TextSize = 12
         textLabel.Font = Enum.Font.GothamBold
         textLabel.TextStrokeTransparency = 0.3
         textLabel.Parent = billboard
@@ -104,52 +119,49 @@ local function createESP(item)
     end)
 end
 
--- Hiệu ứng Rainbow chuyển màu liên tục cho Highlight
+-- Hiệu ứng đổi màu Rainbow liên tục cho các Highlight đang bật
 RunService.RenderStepped:Connect(function()
-    local hue = (tick() % 5) / 5 -- Chu kỳ đổi màu trong 5 giây
+    local hue = (tick() % 5) / 5
     local rainbowColor = Color3.fromHSV(hue, 1, 1)
 
     for i = #rainbowHighlights, 1, -1 do
         local hl = rainbowHighlights[i]
         if hl and hl.Parent then
-            hl.FillColor = rainbowColor
-            hl.OutlineColor = rainbowColor
+            -- Chỉ đổi màu nếu toggle của item đó đang Bật
+            local parentName = hl.Parent.Name
+            if itemToggles[parentName] then
+                hl.FillColor = rainbowColor
+                hl.OutlineColor = rainbowColor
+                hl.Enabled = true
+            else
+                hl.Enabled = false
+            end
         else
             table.remove(rainbowHighlights, i)
         end
     end
 end)
 
--- Xử lý nút bấm Toggle
-toggleButton.MouseButton1Click:Connect(function()
-    espEnabled = not espEnabled
-    if espEnabled then
-        toggleButton.Text = "ESP: ON"
-        toggleButton.TextColor3 = Color3.fromRGB(0, 255, 128)
-        toggleButton.BorderColor3 = Color3.fromRGB(0, 255, 128)
-    else
-        toggleButton.Text = "ESP: OFF"
-        toggleButton.TextColor3 = Color3.fromRGB(255, 60, 60)
-        toggleButton.BorderColor3 = Color3.fromRGB(255, 60, 60)
-    end
-    updateESPVisibility()
-end)
-
--- Quét item sẵn có
+-- Quét toàn bộ map tìm các item có sẵn khớp tên
 for _, obj in ipairs(Workspace:GetDescendants()) do
-    if isPickableItem(obj) then
+    if itemToggles[obj.Name] then
         createESP(obj)
     end
 end
 
--- Lắng nghe item mới spawn
+-- Lắng nghe khi có item mới spawn trong game
 Workspace.DescendantAdded:Connect(function(child)
     task.spawn(function()
         task.wait(0.2)
-        if isPickableItem(child) then
+        if itemToggles[child.Name] then
             createESP(child)
         end
     end)
 end)
 
-print("Đã cập nhật: Chữ nhỏ lại & Highlight Rainbow thành công!")
+Window:SelectTab(1)
+Fluent:Notify({
+    Title = "JJS Item ESP",
+    Content = "Đã khởi động giao diện Fluent UI thành công!",
+    Duration = 4
+})
